@@ -81,38 +81,46 @@ public partial class MainWindow : IDisposable
         MouseDown += OnMouseDown;
         MouseUp += OnMouseUp;
         
-        // Auto-enable startup on the first run
-        EnableStartupIfNotSet();
+        // Check if installer configured startup
+        HandleInstallerStartupSetting();
     }
 
-    private void EnableStartupIfNotSet()
+    private void HandleInstallerStartupSetting()
     {
         try
         {
-            if (!IsStartupEnabled())
+            // Check if installer set a startup preference
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\PerformanceMonitor", false);
+            var startupEnabled = key?.GetValue("StartupEnabled");
+            
+            if (startupEnabled != null && bool.Parse(startupEnabled.ToString()!))
             {
-                string executablePath = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
+                // Installer requested startup - enable it
+                EnableStartup();
                 
-                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-                key?.SetValue("PerformanceMonitor", executablePath);
+                // Clear the installer flag so we don't re-enable if user disables later
+                using var writeKey = Registry.CurrentUser.CreateSubKey(@"Software\PerformanceMonitor");
+                writeKey.DeleteValue("StartupEnabled", false);
             }
         }
         catch
         {
-            // Silently fail if we can't set startup - it's not critical
+            // Silently fail
         }
     }
 
-    private bool IsStartupEnabled()
+    private void EnableStartup()
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
-            return key?.GetValue("PerformanceMonitor") != null;
+            string executablePath = Environment.ProcessPath ?? AppContext.BaseDirectory + "PerformanceMeasurement.exe";
+            
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
+            key?.SetValue("PerformanceMonitor", executablePath);
         }
         catch
         {
-            return false;
+            // Silently fail
         }
     }
 

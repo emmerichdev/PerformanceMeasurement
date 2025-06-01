@@ -1,0 +1,88 @@
+name: Build PerformanceMeasurement
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore PerformanceMeasurement/PerformanceMeasurement.csproj
+
+    - name: Build
+      run: dotnet build PerformanceMeasurement/PerformanceMeasurement.csproj --configuration Release --no-restore
+
+    - name: Publish
+      run: dotnet publish PerformanceMeasurement/PerformanceMeasurement.csproj --configuration Release --no-build --no-restore -o ./publish
+
+    - name: Setup Inno Setup
+      run: |
+        choco install innosetup -y
+        echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Create Installer Script
+      run: |
+        $script = @"
+        #define MyAppName "Performance Monitor"
+        #define MyAppVersion "1.0"
+        #define MyAppPublisher "Emmerich"
+        #define MyAppExeName "PerformanceMeasurement.exe"
+
+        [Setup]
+        AppId={{YOUR-APP-GUID}}
+        AppName={#MyAppName}
+        AppVersion={#MyAppVersion}
+        AppPublisher={#MyAppPublisher}
+        DefaultDirName={autopf}\{#MyAppName}
+        DisableProgramGroupPage=yes
+        OutputDir=.
+        OutputBaseFilename=PerformanceMonitorSetup
+        Compression=lzma
+        SolidCompression=yes
+        WizardStyle=modern
+
+        [Languages]
+        Name: "english"; MessagesFile: "compiler:Default.isl"
+
+        [Tasks]
+        Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+        Name: "startup"; Description: "Start with Windows"; GroupDescription: "Startup Options:"
+
+        [Files]
+        Source: ".\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+        [Icons]
+        Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+        Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+        [Run]
+        Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+        [Registry]
+        Root: HKCU; Subkey: "Software\PerformanceMonitor"; ValueType: string; ValueName: "StartupEnabled"; ValueData: "True"; Tasks: startup; Flags: uninsdeletevalue
+        Root: HKCU; Subkey: "Software\PerformanceMonitor"; ValueType: string; ValueName: "StartupEnabled"; ValueData: "False"; Tasks: not startup; Flags: uninsdeletevalue
+        "@
+        $script | Out-File -FilePath installer.iss -Encoding UTF8
+
+    - name: Build Installer
+      run: iscc installer.iss
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: PerformanceMeasurement
+        path: |
+          ./publish/*
+          ./PerformanceMonitorSetup.exe 
