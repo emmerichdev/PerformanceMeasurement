@@ -15,12 +15,13 @@ public partial class MainWindow : IDisposable
     private PerformanceCounter? _cpuCounter;
     private PerformanceCounter? _ramCounter;
     private PerformanceCounter? _diskCounter;
-    private readonly List<PerformanceCounter> _gpuCounters = new();
     private DispatcherTimer? _timer;
     
     private string _lastDisplayText = "";
     private readonly StringBuilder _stringBuilder = new();
     private bool _isDragging;
+
+    private readonly GpuMonitor _gpuMonitor = new();
 
     public MainWindow()
     {
@@ -37,7 +38,7 @@ public partial class MainWindow : IDisposable
             _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
             _ramCounter = new PerformanceCounter("Memory", "% Committed Bytes In Use");
             _diskCounter = new PerformanceCounter("PhysicalDisk", "% Disk Time", "_Total");
-            InitializeGpuCounters();
+            _gpuMonitor.Initialize();
             
             _cpuCounter.NextValue();
             _ramCounter.NextValue(); 
@@ -46,33 +47,6 @@ public partial class MainWindow : IDisposable
         catch (Exception ex)
         {
             MessageBox.Show($"Error initializing performance counters: {ex.Message}");
-        }
-    }
-
-    private void InitializeGpuCounters()
-    {
-        try
-        {
-            var category = new PerformanceCounterCategory("GPU Engine");
-            var instanceNames = category.GetInstanceNames();
-            
-            foreach (var instanceName in instanceNames)
-            {
-                try
-                {
-                    var counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instanceName);
-                    _gpuCounters.Add(counter);
-                    counter.NextValue();
-                }
-                catch (Exception)
-                {
-                    // Skip counters that can't be initialized
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // GPU Engine counters not available
         }
     }
 
@@ -172,7 +146,7 @@ public partial class MainWindow : IDisposable
             float cpuUsage = _cpuCounter?.NextValue() ?? 0f;
             float ramUsage = _ramCounter?.NextValue() ?? 0f;
             float diskUsage = _diskCounter?.NextValue() ?? 0f;
-            float gpuUsage = GetGpuUsage();
+            float gpuUsage = _gpuMonitor.GetGpuUsage();
 
             _stringBuilder.Clear();
             _stringBuilder.Append("CPU: ").Append(cpuUsage.ToString("F1")).Append("% | ");
@@ -198,45 +172,6 @@ public partial class MainWindow : IDisposable
         }
     }
 
-    private float GetGpuUsage()
-    {
-        if (_gpuCounters.Count == 0)
-            return 0.0f;
-
-        try
-        {
-            float totalUsage = 0f;
-            int activeEngines = 0;
-            float maxUsage = 0f;
-            
-            foreach (var t in _gpuCounters)
-            {
-                float usage = t.NextValue();
-                
-                if (usage > 0.1f) // Only count engines that are actually active
-                {
-                    totalUsage += usage;
-                    activeEngines++;
-                }
-                
-                if (usage > maxUsage)
-                    maxUsage = usage;
-            }
-            
-            if (activeEngines > 0)
-            {
-                float avgUsage = totalUsage / activeEngines;
-                return MathF.Max(avgUsage, maxUsage * 0.8f);
-            }
-            
-            return maxUsage;
-        }
-        catch (Exception)
-        {
-            return 0.0f;
-        }
-    }
-
     public void Dispose()
     {
         _timer?.Stop();
@@ -246,11 +181,7 @@ public partial class MainWindow : IDisposable
         _ramCounter?.Dispose();
         _diskCounter?.Dispose();
         
-        foreach (var counter in _gpuCounters)
-        {
-            counter.Dispose();
-        }
-        _gpuCounters.Clear();
+        _gpuMonitor.Dispose();
         
         GC.SuppressFinalize(this);
     }
