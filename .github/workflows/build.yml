@@ -19,13 +19,16 @@ jobs:
         dotnet-version: '9.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore PerformanceMeasurement/PerformanceMeasurement.csproj
+      run: dotnet restore PerformanceMeasurement.csproj
+      working-directory: ./PerformanceMeasurement
 
     - name: Build
-      run: dotnet build PerformanceMeasurement/PerformanceMeasurement.csproj --configuration Release --no-restore
+      run: dotnet build PerformanceMeasurement.csproj --configuration Release --no-restore
+      working-directory: ./PerformanceMeasurement
 
     - name: Publish
-      run: dotnet publish PerformanceMeasurement/PerformanceMeasurement.csproj --configuration Release --no-build --no-restore -o ./publish
+      run: dotnet publish PerformanceMeasurement.csproj --configuration Release --no-build --no-restore -o ./publish
+      working-directory: ./PerformanceMeasurement
 
     - name: Setup Inno Setup
       run: |
