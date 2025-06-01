@@ -20,15 +20,12 @@ jobs:
 
     - name: Restore dependencies
       run: dotnet restore PerformanceMeasurement.csproj
-      working-directory: PerformanceMeasurement
 
     - name: Build
       run: dotnet build PerformanceMeasurement.csproj --configuration Release --no-restore
-      working-directory: PerformanceMeasurement
 
     - name: Publish
       run: dotnet publish PerformanceMeasurement.csproj --configuration Release --no-build --no-restore -o ./publish
-      working-directory: PerformanceMeasurement
 
     - name: Setup Inno Setup
       run: |
