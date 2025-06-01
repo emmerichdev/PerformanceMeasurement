@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v3
@@ -96,35 +98,22 @@ jobs:
         echo "tag=$version" >> $env:GITHUB_OUTPUT
         echo "Generated version: $version"
 
-    - name: Create Release
+    - name: Create Release with GitHub CLI
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-      id: create_release
-      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.version.outputs.tag }}
-        release_name: Performance Monitor ${{ steps.version.outputs.tag }}
-        draft: false
-        prerelease: false
-        body: |
-          ## Performance Monitor Release ${{ steps.version.outputs.tag }}
-          
-          ### What's New
-          - Latest build of Performance Monitor
-          - Built on ${{ github.ref_name }} branch
-          - Commit: ${{ github.sha }}
-          
-          ### Installation
-          Download and run `PerformanceMonitorSetup.exe` to install the application.
-
-    - name: Upload Release Asset
-      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./PerformanceMonitorSetup.exe
-        asset_name: PerformanceMonitorSetup.exe
-        asset_content_type: application/octet-stream
+      run: |
+        $tag = "${{ steps.version.outputs.tag }}"
+        $releaseNotes = @"
+        ## Performance Monitor Release $tag
+        
+        ### What's New
+        - Latest build of Performance Monitor
+        - Built on ${{ github.ref_name }} branch
+        - Commit: ${{ github.sha }}
+        
+        ### Installation
+        Download and run ``PerformanceMonitorSetup.exe`` to install the application.
+        "@
+        
+        gh release create $tag ./PerformanceMonitorSetup.exe --title "Performance Monitor $tag" --notes $releaseNotes
